@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ping Pong Game</title>
+    <style>
+        canvas {
+            background: black;
+            display: block;
+            margin: 0 auto;
+        }
+    </style>
+</head>
+<body>
+<canvas id="gameCanvas" width="800" height="600"></canvas>
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const context = canvas.getContext('2d');
+
+    const socket = new WebSocket('ws://192.168.1.130:8080'); // Burada YOUR_SERVER_IP'yi yerel ağ IP adresinizle değiştirin.
+
+    let gameState = {
+        ball: { x: 0, y: 0 },
+        paddles: [
+            { x: -0.9, y: 0 },
+            { x: 0.9, y: 0 }
+        ]
+    };
+
+    let player = -1; // Bu istemcinin oyuncu numarası, -1 ise izleyici
+
+    socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+
+        if (data.type === 'init') {
+            gameState = data.state;
+            player = data.player; // İstemciye oyuncu numarasını atama
+        }
+
+        if (data.type === 'updateBall') {
+            gameState.ball = data.ball;
+        }
+
+        if (data.type === 'updatePaddle') {
+            gameState.paddles[data.player].y = data.y;
+        }
+    };
+
+    function draw() {
+        context.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw ball
+        context.fillStyle = 'white';
+        context.beginPath();
+        context.arc((gameState.ball.x + 1) * canvas.width / 2, (gameState.ball.y + 1) * canvas.height / 2, 10, 0, Math.PI * 2);
+        context.fill();
+
+        // Draw paddles
+        gameState.paddles.forEach((paddle, index) => {
+            context.fillRect((paddle.x + 1) * canvas.width / 2 - 10, (paddle.y + 1) * canvas.height / 2 - 50, 20, 100);
+        });
+    }
+
+    function update() {
+        draw();
+        requestAnimationFrame(update);
+    }
+
+    canvas.addEventListener('mousemove', function(event) {
+        if (player === -1) return; // İstemci oyuncu değilse paddle hareket ettirme
+        const rect = canvas.getBoundingClientRect();
+        const y = (event.clientY - rect.top) / canvas.height * 2 - 1;
+
+        gameState.paddles[player].y = y;
+        socket.send(JSON.stringify({ type: 'movePaddle', player: player, y: y }));
+    });
+
+    update();
+</script>
+</body>
+</html>
